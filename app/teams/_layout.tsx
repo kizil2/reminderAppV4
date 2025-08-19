@@ -36,7 +36,7 @@ export default function PickTeamsScreen() {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       const userId = userData?.user?.id;
       if (!userId) {
-        alert('Pick Teams error: No user is logged in.');
+        alert('No user is logged in.');
         return;
       }
       const { error } = await supabase
@@ -48,7 +48,7 @@ export default function PickTeamsScreen() {
           }
         ], { onConflict: 'user_id' });
       if (error) {
-        alert('Pick Teams error: ' + error.message);
+        alert(error.message);
         console.log(error);
       } else {
         router.replace({ pathname: "/home", params: { refresh: Date.now().toString() } });
@@ -57,10 +57,6 @@ export default function PickTeamsScreen() {
       alert('Pick Teams exception: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
-
-  const getDisplayedTeams = () => {
-    return activeLeague ? getTeamsByLeague(activeLeague) : [];
-  } 
 
   return (
     <>

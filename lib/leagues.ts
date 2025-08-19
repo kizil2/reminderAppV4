@@ -316,11 +316,11 @@ export async function fetchAllLeaguesMatches(): Promise<FootballDataMatch[]> {
 }
 
 export function getNextMatchForTeams(matches: FootballDataMatch[], teamNames: string[]): FootballDataMatch | null {
-  const upcomingMatches = getUpcomingMatchesForTeams(matches, teamNames);
+  const upcomingMatches = getUpcomingMatches(matches, teamNames);
   return upcomingMatches[0] || null;
 }
 
-export function getUpcomingMatchesForTeams(matches: FootballDataMatch[], teamNames: string[], limit: number = 5): FootballDataMatch[] {
+export function getUpcomingMatches(matches: FootballDataMatch[], teamNames: string[], limit: number = 5): FootballDataMatch[] {
   const now = new Date();
 
   const normalizeTeamName = (name: string) => 
@@ -399,7 +399,7 @@ export function getUpcomingMatchesForTeams(matches: FootballDataMatch[], teamNam
   return upcomingMatches;
 }
 
-export function getLeagueBadgeForMatch(match: FootballDataMatch): { name: string; flag: string; color: string } {
+export function getLeagueBadge(match: FootballDataMatch): { name: string; flag: string; color: string } {
   const league = LEAGUES.find(l => l.apiCode === match.competition.code);
   if (league) {
     const leagueColors: { [key: string]: string } = {

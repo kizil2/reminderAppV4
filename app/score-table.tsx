@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { fetchLeagueStandings } from "../lib/footballDataApi";
+import { fetchStandings } from "../lib/footballDataApi";
 import { LEAGUES } from "../lib/leagues";
 
 export default function ScoreTableScreen() {
@@ -16,7 +16,7 @@ export default function ScoreTableScreen() {
     const apiCode = getApiCode(leagueId);
     if (!apiCode) return;
     setLoading(true);
-    const data = await fetchLeagueStandings(apiCode);
+    const data = await fetchStandings(apiCode);
     setStandings(data);
     setLoading(false);
   };

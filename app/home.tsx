@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useMatches } from "../components/MatchesContext";
-import { FootballDataMatch, getFollowedTeams, getLeagueBadgeForMatch, getNextMatchForTeams, getUpcomingMatchesForTeams } from "../lib/leagues";
+import { FootballDataMatch, getFollowedTeams, getLeagueBadge, getNextMatchForTeams, getUpcomingMatches } from "../lib/leagues";
 import { registerForPushNotificationsAsync } from "../utils/notifications";
 
 const { width } = Dimensions.get("window");
@@ -145,16 +145,16 @@ export default function HomeScreen() {
       for (const match of upcomingMatches) {
         const matchDate = new Date(match.utcDate);
         const now = Date.now();
-        const fiveHoursBefore = matchDate.getTime() - (5 * 60 + 0) * 60 * 1000;
-        const fiveHoursSeconds = Math.floor((fiveHoursBefore - now) / 1000);
-        if (fiveHoursSeconds > 0) {
+        const twoHoursBefore = matchDate.getTime() - (2 * 60 + 0) * 60 * 1000;
+        const twoHoursinSeconds = Math.floor((twoHoursBefore - now) / 1000);
+        if (twoHoursinSeconds > 0) {
           await Notifications.scheduleNotificationAsync({
             content: {
               title: `Upcoming Match: ${match.homeTeam.shortName} vs ${match.awayTeam.shortName}`,
               body: `Starts at ${matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
               sound: true,
             },
-            trigger: { seconds: fiveHoursSeconds, repeats: false, type: 'timeInterval' } as any,
+            trigger: { seconds: twoHoursinSeconds, repeats: false, type: 'timeInterval' } as any,
           });
         }
       }
@@ -189,7 +189,7 @@ export default function HomeScreen() {
               return;
             }
             const nextMatchData = getNextMatchForTeams(allMatches, followedTLAs);
-            const teamMatches = getUpcomingMatchesForTeams(allMatches, followedTLAs, 5);
+            const teamMatches = getUpcomingMatches(allMatches, followedTLAs, 5);
             if (isActive) {
               setFollowedTeams(teams);
               setNextMatch(nextMatchData);
@@ -279,7 +279,7 @@ export default function HomeScreen() {
             </View>
           ) : (
             upcomingMatches.map(match => {
-              const leagueBadge = getLeagueBadgeForMatch(match);
+              const leagueBadge = getLeagueBadge(match);
               return (
                 <View key={match.id} style={styles.matchCard}>
                   <View style={[styles.matchBadge, { backgroundColor: `${leagueBadge.color}15` }]}>

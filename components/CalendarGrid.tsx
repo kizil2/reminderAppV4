@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
-import { getLeagueBadgeForMatch } from "../lib/leagues";
+import { getLeagueBadge } from "../lib/leagues";
 
 interface CalendarGridProps {
   days: number;
@@ -20,7 +20,7 @@ export default function CalendarGrid({ days, firstDay, selectedDate, setSelected
     const uniqueLeagues = new Map();
     
     matches.forEach(match => {
-      const leagueBadge = getLeagueBadgeForMatch(match);
+      const leagueBadge = getLeagueBadge(match);
       if (!uniqueLeagues.has(match.competition.code)) {
         uniqueLeagues.set(match.competition.code, leagueBadge);
       }

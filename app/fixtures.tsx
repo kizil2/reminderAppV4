@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useMatches } from '../components/MatchesContext';
-import { FootballDataMatch, getFollowedTeams, getLeagueBadgeForMatch } from '../lib/leagues';
+import { FootballDataMatch, getFollowedTeams, getLeagueBadge } from '../lib/leagues';
 
 export default function FixturesScreen() {
   const router = useRouter();
@@ -34,7 +34,7 @@ export default function FixturesScreen() {
       const ALL_TEAMS = require('../lib/leagues').ALL_TEAMS;
       const followedTLAs = followedTeams
         .map(id => {
-          const team = ALL_TEAMS.find(t => t.id === id);
+          const team = ALL_TEAMS.find((t: { id: string; }) => t.id === id);
           return team ? team.shortName : null;
         })
         .filter((tla): tla is string => Boolean(tla));
@@ -50,7 +50,7 @@ export default function FixturesScreen() {
   };
 
   const renderFixture = ({ item }: { item: FootballDataMatch }) => {
-    const leagueBadge = getLeagueBadgeForMatch(item);
+    const leagueBadge = getLeagueBadge(item);
     const matchDate = new Date(item.utcDate);
     const formattedDate = matchDate.toLocaleDateString('en-US', { 
       weekday: 'short', 

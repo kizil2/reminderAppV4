@@ -1,4 +1,4 @@
-export async function fetchLeagueStandings(leagueCode: string) {
+export async function fetchStandings(leagueCode: string) {
   try {
     const response = await fetch(`${BASE_URL}/competitions/${leagueCode}/standings`, {
       headers: {

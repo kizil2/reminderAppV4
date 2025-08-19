@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import CalendarGrid from "../../components/CalendarGrid";
 import { useMatches } from "../../components/MatchesContext";
-import { getLeagueBadgeForMatch } from "../../lib/leagues";
+import { getLeagueBadge } from "../../lib/leagues";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -22,15 +22,15 @@ function CalendarScreen() {
   const { matches: fixtures, loading } = useMatches();
   const { days, firstDay } = getMonthMeta(selectedDate);
 
-  const getMatchesForDate = (date: Date) => {
+  const getMatchOnDate = (date: Date) => {
     return fixtures.filter((match) => {
       const matchDate = new Date(match.utcDate);
       return matchDate.toDateString() === date.toDateString();
     });
   };
 
-  const renderMatchesForDate = () => {
-    const matches = getMatchesForDate(selectedDate);
+  const renderMatches = () => {
+    const matches = getMatchOnDate(selectedDate);
     if (!matches.length) return <Text style={{ color: '#888', fontSize: 16, textAlign: 'center', marginTop: 20 }}>No matches on this day.</Text>;
     
     return matches.map((match) => {
@@ -41,7 +41,7 @@ function CalendarScreen() {
         minute: '2-digit',
         timeZone: 'Europe/London'
       });
-      const leagueBadge = getLeagueBadgeForMatch(match);
+      const leagueBadge = getLeagueBadge(match);
       
       return (
         <View key={match.id} style={styles.medicationCard}>
@@ -88,13 +88,13 @@ function CalendarScreen() {
             firstDay={firstDay}
             selectedDate={selectedDate}
             setSelectedDate={setSelectedDate}
-            getMatchesForDate={getMatchesForDate}
+            getMatchesForDate={getMatchOnDate}
             styles={styles}
           />
         </View>
         <View style={styles.scheduleContainer}>
           <Text style={styles.scheduleTitle}>{selectedDate.toLocaleDateString("default", { weekday: "long", month: "long", day: "numeric" })}</Text>
-          <ScrollView showsVerticalScrollIndicator={false}>{renderMatchesForDate()}</ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false}>{renderMatches()}</ScrollView>
         </View>
       </View>
     </View>
