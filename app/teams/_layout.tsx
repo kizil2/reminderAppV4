@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { Stack, useRouter } from "expo-router";
 import React, { useState } from "react";
-import { useFocusEffect } from "@react-navigation/native";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { LEAGUES, getFollowedTeams, getTeamsByLeague, setFollowedTeams } from "../../lib/leagues";
+import { LEAGUES, getFollowedTeams, getTeamsByLeague } from "../../lib/leagues";
 
 export default function PickTeamsScreen() {
   const [selected, setSelected] = useState<string[]>([]);
@@ -117,10 +117,7 @@ export default function PickTeamsScreen() {
             );
           })()}
         </ScrollView>
-        
-
-
-        {/* Pick Teams button: upsert and return to main page */}
+      
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: '#2E7D32' }]}
           onPress={save}

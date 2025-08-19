@@ -229,7 +229,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
           <CircularProgress nextMatch={nextMatch} />
-          {/* Remind Me for Next Match button removed. Notifications are now automatic. */}
         </View>
       </View>
       
