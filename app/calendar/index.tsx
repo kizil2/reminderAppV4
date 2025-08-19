@@ -3,10 +3,10 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import CalendarGrid from "../../components/CalendarGrid";
-import { SUPER_LIG_TEAMS } from "../footballData/football";
+import { useMatches } from "../../components/MatchesContext";
+import { getLeagueBadgeForMatch } from "../../lib/leagues";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const fixtures = require('../footballData/fixtures.json');
 
 function getMonthMeta(date: Date) {
   const year = date.getFullYear(), month = date.getMonth();
@@ -16,28 +16,45 @@ function getMonthMeta(date: Date) {
   };
 }
 
-function getMatchesForDate(date: Date) {
-  return fixtures.filter((m: any) => new Date(m.date).toDateString() === date.toDateString());
-}
-
 function CalendarScreen() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const { matches: fixtures, loading } = useMatches();
   const { days, firstDay } = getMonthMeta(selectedDate);
+
+  const getMatchesForDate = (date: Date) => {
+    return fixtures.filter((match) => {
+      const matchDate = new Date(match.utcDate);
+      return matchDate.toDateString() === date.toDateString();
+    });
+  };
 
   const renderMatchesForDate = () => {
     const matches = getMatchesForDate(selectedDate);
     if (!matches.length) return <Text style={{ color: '#888', fontSize: 16, textAlign: 'center', marginTop: 20 }}>No matches on this day.</Text>;
-    return matches.map((match: any) => {
-      const home = SUPER_LIG_TEAMS.find(t => t.id === match.homeTeam);
-      const away = SUPER_LIG_TEAMS.find(t => t.id === match.awayTeam);
+    
+    return matches.map((match) => {
+      const homeTeamName = match.homeTeam.shortName || match.homeTeam.name;
+      const awayTeamName = match.awayTeam.shortName || match.awayTeam.name;
+      const matchTime = new Date(match.utcDate).toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        timeZone: 'Europe/London'
+      });
+      const leagueBadge = getLeagueBadgeForMatch(match);
+      
       return (
         <View key={match.id} style={styles.medicationCard}>
-          <View style={[styles.medicationColor, { backgroundColor: home?.color || '#ccc' }]} />
+          <View style={[styles.medicationColor, { backgroundColor: leagueBadge.color }]} />
           <View style={styles.medicationInfo}>
-            <Text style={styles.medicationName}>{home?.name} vs {away?.name}</Text>
-            <Text style={styles.medicationDosage}>Week {match.week} - {match.venue}</Text>
-            <Text style={styles.medicationTime}>{new Date(match.date).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</Text>
+            <View style={styles.matchHeaderCalendar}>
+              <Text style={styles.medicationName}>{homeTeamName} vs {awayTeamName}</Text>
+              <Text style={[styles.leagueBadgeCalendar, { backgroundColor: leagueBadge.color }]}>
+                {leagueBadge.flag}
+              </Text>
+            </View>
+            <Text style={styles.medicationDosage}>Matchday {match.matchday} - {leagueBadge.name}</Text>
+            <Text style={styles.medicationTime}>{matchTime}</Text>
           </View>
         </View>
       );
@@ -169,13 +186,24 @@ const styles = StyleSheet.create({
   hasEvents: {
     position: "relative",
   },
+  eventDotsContainer: {
+    position: "absolute",
+    bottom: "8%",
+    left: "50%",
+    transform: [{ translateX: -12 }],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 6,
+  },
   eventDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
     backgroundColor: "#1a8e2d",
     position: "absolute",
-    bottom: "15%",
+    bottom: 0,
   },
   scheduleContainer: {
     flex: 1,
@@ -209,11 +237,26 @@ const styles = StyleSheet.create({
   medicationInfo: {
     flex: 1,
   },
+  matchHeaderCalendar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   medicationName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 4,
+    flex: 1,
+  },
+  leagueBadgeCalendar: {
+    fontSize: 12,
+    color: "white",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: "500",
+    overflow: "hidden",
   },
   medicationDosage: {
     fontSize: 14,

@@ -1,17 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
-// import { LinearGradient } from "expo-linear-gradient";
-import { Link, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import * as Notifications from "expo-notifications";
+import { Link } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { getFollowedTeams, Match, SUPER_LIG_FIXTURES, SUPER_LIG_TEAMS } from "./footballData/football";
+import { useMatches } from "../components/MatchesContext";
+import { FootballDataMatch, getFollowedTeams, getLeagueBadgeForMatch, getNextMatchForTeams, getUpcomingMatchesForTeams } from "../lib/leagues";
+import { registerForPushNotificationsAsync } from "../utils/notifications";
 
 const { width } = Dimensions.get("window");
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const QUICK_ACTIONS = [
   {
-    label: "Pick Teams",
+    label: "Pick Teams \n(En, Ge, Sp, Fr, It)",
     route: "./teams" as const,
     color: "#1976D2",
   },
@@ -20,11 +23,20 @@ const QUICK_ACTIONS = [
     route: "./calendar" as const,
     color: "#2E7D32",
   },
+  {
+    label: "Score Table",
+    route: "./score-table" as const,
+    color: "#FF9800",
+  },
+  {
+    label: "Settings",
+    route: "./settings" as const,
+    color: "#607D8B",
+  },
 ];
 
-
 interface CircularProgressProps {
-  nextMatch: Match | null;
+  nextMatch: FootballDataMatch | null;
 }
 
 function CircularProgress({ nextMatch }: CircularProgressProps) {
@@ -34,7 +46,7 @@ function CircularProgress({ nextMatch }: CircularProgressProps) {
     if (!nextMatch) return;
     const update = () => {
       const now = new Date();
-      const matchDate = new Date(nextMatch.date);
+      const matchDate = new Date(nextMatch.utcDate);
       setRemaining(Math.max(0, Math.floor((matchDate.getTime() - now.getTime()) / 1000)));
     };
     update();
@@ -46,18 +58,25 @@ function CircularProgress({ nextMatch }: CircularProgressProps) {
   let total = 0;
   if (nextMatch) {
     const now = new Date();
-    const matchDate = new Date(nextMatch.date);
+    const matchDate = new Date(nextMatch.utcDate);
     total = Math.floor((matchDate.getTime() - now.setHours(0, 0, 0, 0)) / 1000);
     progress = remaining / total;
   }
 
-  const hours = Math.floor(remaining / 3600);
+  const days = Math.floor(remaining / 86400);
+  const hours = Math.floor((remaining % 86400) / 3600);
   const minutes = Math.floor((remaining % 3600) / 60);
   const seconds = remaining % 60;
-  const timeString = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  
+  let timeString;
+  if (days > 0) {
+    timeString = `${days}:${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  } else {
+    timeString = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
 
   const size = width * 0.55;
-  const strokeWidth = 15;
+  const strokeWidth = 12;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const animatedValue = useRef(new Animated.Value(progress)).current;
@@ -81,7 +100,7 @@ function CircularProgress({ nextMatch }: CircularProgressProps) {
         <Text style={styles.progressPercentage}>{timeString}</Text>
         <Text style={styles.progressDetails}>
           {nextMatch
-            ? `Next match: ${nextMatch.homeTeam.toUpperCase()} vs ${nextMatch.awayTeam.toUpperCase()}`
+            ? `Next match: ${nextMatch.homeTeam.shortName} vs ${nextMatch.awayTeam.shortName}`
             : "No upcoming matches"}
         </Text>
       </View>
@@ -111,45 +130,111 @@ function CircularProgress({ nextMatch }: CircularProgressProps) {
   );
 }
 
-
-const getNextMatch = (teamIds: string[]) => getUpcomingMatches(teamIds, 1)[0] || null;
-const getUpcomingMatches = (teamIds: string[], count = 5) => {
-  const now = new Date();
-  return SUPER_LIG_FIXTURES
-    .filter(m => (teamIds.includes(m.homeTeam) || teamIds.includes(m.awayTeam)) && new Date(m.date) > now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    .slice(0, count);
-};
-const getTeam = (id: string) => SUPER_LIG_TEAMS.find(t => t.id === id);
-
-
 export default function HomeScreen() {
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      const token = await registerForPushNotificationsAsync();
+      setExpoPushToken(token);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!upcomingMatches || upcomingMatches.length === 0) return;
+    (async () => {
+      for (const match of upcomingMatches) {
+        const matchDate = new Date(match.utcDate);
+        const now = Date.now();
+        const fiveHoursBefore = matchDate.getTime() - (5 * 60 + 0) * 60 * 1000;
+        const fiveHoursSeconds = Math.floor((fiveHoursBefore - now) / 1000);
+        if (fiveHoursSeconds > 0) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `Upcoming Match: ${match.homeTeam.shortName} vs ${match.awayTeam.shortName}`,
+              body: `Starts at ${matchDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+              sound: true,
+            },
+            trigger: { seconds: fiveHoursSeconds, repeats: false, type: 'timeInterval' } as any,
+          });
+        }
+      }
+    })();
+  }, [upcomingMatches]);
   const [followedTeams, setFollowedTeams] = useState<string[]>([]);
-  const [nextMatch, setNextMatch] = useState<Match | null>(null);
+  const [nextMatch, setNextMatch] = useState<FootballDataMatch | null>(null);
+  const { matches: allMatches, loading } = useMatches();
+  const [upcomingMatches, setUpcomingMatches] = useState<FootballDataMatch[]>([]);
+  // const [debugInfo, setDebugInfo] = useState<string>('');
+
   useFocusEffect(
     React.useCallback(() => {
       let isActive = true;
-      (async () => {
-        const teams = await getFollowedTeams();
-        if (isActive) {
-          setFollowedTeams(teams);
-          setNextMatch(getNextMatch(teams));
+      const loadData = async () => {
+        try {
+          const teams = await getFollowedTeams();
+          const { ALL_TEAMS } = await import('../lib/leagues');
+          const followedTLAs = teams
+            .map(id => {
+              const team = ALL_TEAMS.find(t => t.id === id);
+              return team ? team.shortName : null;
+            })
+            .filter((tla): tla is string => Boolean(tla));
+          if (teams.length > 0) {
+            if (allMatches.length === 0) {
+              if (isActive) {
+                setFollowedTeams(teams);
+                setNextMatch(null);
+                setUpcomingMatches([]);
+              }
+              return;
+            }
+            const nextMatchData = getNextMatchForTeams(allMatches, followedTLAs);
+            const teamMatches = getUpcomingMatchesForTeams(allMatches, followedTLAs, 5);
+            if (isActive) {
+              setFollowedTeams(teams);
+              setNextMatch(nextMatchData);
+              setUpcomingMatches(teamMatches);
+            }
+          } else {
+            if (isActive) {
+              setFollowedTeams([]);
+              setNextMatch(null);
+              setUpcomingMatches([]);
+            }
+          }
+        } catch (error: any) {
         }
-      })();
+      };
+      loadData();
       return () => { isActive = false; };
-    }, [])
+    }, [allMatches])
   );
-  const matches = getUpcomingMatches(followedTeams, 5);
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={[styles.header, { backgroundColor: '#8e1a1aff' }]}> 
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
-            <Text style={styles.greeting}>Süper Lig Match Follower</Text>
+            <Text style={styles.greeting}>Match Follower</Text>
+            <TouchableOpacity 
+              style={styles.notificationBox}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="notifications-outline" size={20} color="white" />
+              {upcomingMatches.length > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{upcomingMatches.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
           <CircularProgress nextMatch={nextMatch} />
+          {/* Remind Me for Next Match button removed. Notifications are now automatic. */}
         </View>
       </View>
+      
+
+      
       <View style={styles.content}>
         <View style={styles.quickActionsContainer}>
           <View style={styles.quickActionsGrid}>
@@ -166,9 +251,18 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+        
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Upcoming Matches</Text>
+            {upcomingMatches.length > 0 && (
+              <Link href="./fixtures" asChild>
+                <TouchableOpacity style={styles.moreButton}>
+                  <Text style={styles.moreButtonText}>More</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#1976D2" />
+                </TouchableOpacity>
+              </Link>
+            )}
           </View>
           {followedTeams.length === 0 ? (
             <View style={styles.emptyState}>
@@ -180,21 +274,33 @@ export default function HomeScreen() {
                 </TouchableOpacity>
               </Link>
             </View>
-          ) : matches.length === 0 ? (
-            <Text style={styles.emptyStateText}>No upcoming matches for your teams.</Text>
+          ) : upcomingMatches.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No upcoming matches found for your teams.</Text>
+            </View>
           ) : (
-            matches.map(match => {
-              const home = getTeam(match.homeTeam);
-              const away = getTeam(match.awayTeam);
+            upcomingMatches.map(match => {
+              const leagueBadge = getLeagueBadgeForMatch(match);
               return (
                 <View key={match.id} style={styles.matchCard}>
-                  <View style={[styles.matchBadge, { backgroundColor: `${home?.color || '#eee'}15` }]}> 
-                    <Ionicons name="football" size={24} color={home?.color || '#333'} />
+                  <View style={[styles.matchBadge, { backgroundColor: `${leagueBadge.color}15` }]}>
+                    <Ionicons name="football" size={24} color={leagueBadge.color} />
                   </View>
                   <View style={styles.matchInfo}>
-                    <Text style={styles.matchTeams}>{home?.name} vs {away?.name}</Text>
-                    <Text style={styles.matchDetails}>Week {match.week} - {match.venue}</Text>
-                    <Text style={styles.matchTimeText}>{new Date(match.date).toLocaleString('tr-TR')}</Text>
+                    <View style={styles.matchHeader}>
+                      <Text style={styles.matchTeams}>
+                        {match.homeTeam.shortName} vs {match.awayTeam.shortName}
+                      </Text>
+                      <Text style={[styles.leagueBadge, { backgroundColor: leagueBadge.color }]}>
+                        {leagueBadge.flag} {leagueBadge.name}
+                      </Text>
+                    </View>
+                    <Text style={styles.matchDetails}>
+                      Matchday {match.matchday}
+                    </Text>
+                    <Text style={styles.matchTimeText}>
+                      {new Date(match.utcDate).toLocaleString('en-GB')}
+                    </Text>
                   </View>
                 </View>
               );
@@ -224,6 +330,7 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     width: "100%",
     marginBottom: 20,
   },
@@ -232,6 +339,33 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "white",
     opacity: 0.9,
+  },
+  notificationBox: {
+    width: 40,
+    height: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#FF3B30",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "white",
+  },
+  notificationBadgeText: {
+    color: "white",
+    fontSize: 10,
+    fontWeight: "bold",
   },
   content: {
     flex: 1,
@@ -261,14 +395,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   actionLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -289,10 +415,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1a1a1a",
     marginBottom: 5,
-  },
-  seeAllButton: {
-    color: "#2E7D32",
-    fontWeight: "600",
   },
   matchCard: {
     flexDirection: "row",
@@ -315,20 +437,31 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
+  matchHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   matchTeams: {
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
-    marginBottom: 4,
+    flex: 1,
+  },
+  leagueBadge: {
+    fontSize: 10,
+    color: "white",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    fontWeight: "500",
+    overflow: "hidden",
   },
   matchDetails: {
     fontSize: 14,
     color: "#666",
     marginBottom: 4,
-  },
-  matchTime: {
-    flexDirection: "row",
-    alignItems: "center",
   },
   matchTimeText: {
     marginLeft: 5,
@@ -347,57 +480,17 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   progressPercentage: {
-    fontSize: 36,
+    fontSize: 24,
     fontWeight: "bold",
     color: "white",
   },
-  progressLabel: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 4,
-  },
-  progressRing: {
-    transform: [{ rotate: "-90deg" }],
-  },
-  flex1: {
-    flex: 1,
-  },
-
-  /* belki sağ üste?
-  notificationButton: {
-    position: "relative",
-  },
-  notificationBadge: {
-  },
-  */
-
   progressDetails: {
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.8)",
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    padding: 20,
-    maxHeight: "80%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+  progressRing: {
+    transform: [{ rotate: "-90deg" }],
   },
   emptyState: {
     alignItems: "center",
@@ -421,5 +514,21 @@ const styles = StyleSheet.create({
   teamPickButtonText: {
     color: "white",
     fontWeight: "600",
+  },
+  moreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(25, 118, 210, 0.1)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#1976D2",
+  },
+  moreButtonText: {
+    fontSize: 14,
+    color: "#1976D2",
+    fontWeight: "600",
+    marginRight: 4,
   },
 });

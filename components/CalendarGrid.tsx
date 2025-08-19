@@ -1,5 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
+import { getLeagueBadgeForMatch } from "../lib/leagues";
 
 interface CalendarGridProps {
   days: number;
@@ -14,6 +15,20 @@ export default function CalendarGrid({ days, firstDay, selectedDate, setSelected
   const weeks = [];
   let daysRow = [];
 
+  const getLeaguesForDate = (date: Date) => {
+    const matches = getMatchesForDate(date);
+    const uniqueLeagues = new Map();
+    
+    matches.forEach(match => {
+      const leagueBadge = getLeagueBadgeForMatch(match);
+      if (!uniqueLeagues.has(match.competition.code)) {
+        uniqueLeagues.set(match.competition.code, leagueBadge);
+      }
+    });
+    
+    return Array.from(uniqueLeagues.values());
+  };
+
   for (let i = 0; i < firstDay; i++) {
     daysRow.push(<View key={`empty-${i}`} style={styles.calendarDay} />);
   }
@@ -21,7 +36,8 @@ export default function CalendarGrid({ days, firstDay, selectedDate, setSelected
   for (let day = 1; day <= days; day++) {
     const date = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), day);
     const isToday = new Date().toDateString() === date.toDateString();
-    const hasMatch = getMatchesForDate(date).length > 0;
+    const leagues = getLeaguesForDate(date);
+    const hasMatch = leagues.length > 0;
 
     daysRow.push(
       <TouchableOpacity
@@ -34,7 +50,22 @@ export default function CalendarGrid({ days, firstDay, selectedDate, setSelected
         onPress={() => setSelectedDate(date)}
       >
         <Text style={[styles.dayText, isToday && styles.todayText]}>{day}</Text>
-        {hasMatch && <View style={styles.eventDot} />}
+        {hasMatch && (
+          <View style={styles.eventDotsContainer}>
+            {leagues.slice(0, 4).map((league, index) => (
+              <View 
+                key={`${league.name}-${index}`}
+                style={[
+                  styles.eventDot, 
+                  { 
+                    backgroundColor: league.color, 
+                    left: index * 5 // 4pixel dot + 1 gap
+                  }
+                ]} 
+              />
+            ))}
+          </View>
+        )}
       </TouchableOpacity>
     );
 
